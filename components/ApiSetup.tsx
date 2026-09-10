@@ -17,7 +17,7 @@ export function ApiSetup({ config, setConfig }: {
             <h2 id="api-setup-title">API connection</h2>
             <span className={`connection-chip ${ready ? "ready" : ""}`}>{ready ? "Ready" : "Key required"}</span>
           </div>
-          <p>Your key is kept only in this browser tab and sent directly to the provider. Strict JSON Schema output is always enforced.</p>
+          <p>Enter your API key and start. JSON compatibility and result validation are handled automatically.</p>
         </div>
         <div className="api-key-field">
           <label htmlFor="api-key">API key</label>
@@ -32,7 +32,7 @@ export function ApiSetup({ config, setConfig }: {
           <label>Analysis model<input value={config.analyzeModel} onChange={(event) => update({ analyzeModel: event.target.value })} /></label>
           <label>Diagnosis model<input value={config.diagnoseModel} onChange={(event) => update({ diagnoseModel: event.target.value })} /></label>
         </div>
-        <p className="api-schema-note">Structured Outputs: <strong>strict JSON Schema</strong>. The selected model and provider must support this OpenAI-compatible feature.</p>
+        <p className="api-schema-note">Keep these defaults for OpenAI. Change them only when using another compatible provider.</p>
       </details>
       <p className="api-caution">Use a temporary or restricted project key on a trusted device. A browser-only demo cannot provide server-grade secret protection.</p>
     </section>

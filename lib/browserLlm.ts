@@ -12,6 +12,9 @@ export const DEFAULT_BROWSER_LLM_CONFIG: BrowserLlmConfig = {
 };
 
 type ModelKind = "analyze" | "diagnose";
+type OutputMode = "strict_schema" | "json_object" | "prompt_only";
+
+const OUTPUT_MODES: OutputMode[] = ["strict_schema", "json_object", "prompt_only"];
 
 function parseJsonCandidate(content: string) {
   return JSON.parse(content.trim()) as unknown;
@@ -22,6 +25,10 @@ function validationSummary(error: z.ZodError) {
     .slice(0, 8)
     .map((issue) => `${issue.path.join(".") || "root"}: ${issue.message}`)
     .join("; ");
+}
+
+function isOutputModeRejection(error: unknown) {
+  return error instanceof OpenAI.APIError && [400, 404, 415, 422].includes(error.status ?? 0);
 }
 
 function validatedConfig(kind: ModelKind, config: BrowserLlmConfig) {
@@ -48,16 +55,29 @@ export async function requestValidatedJson<T>(kind: ModelKind, messages: { syste
   );
   let priorContent = "";
   let repairFeedback = "The response was not a valid standalone JSON object.";
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const response = await client.chat.completions.create({
-      model,
-      messages: attempt === 0
-        ? [{ role: "system", content: messages.system }, { role: "user", content: messages.user }]
-        : [{ role: "system", content: messages.system }, { role: "user", content: messages.user }, { role: "assistant", content: priorContent || "(empty response)" }, { role: "user", content: `Repair the response according to the enforced JSON Schema. ${repairFeedback} Return the complete object without omitting content.` }],
-      response_format: responseFormat,
-      max_tokens: maxTokens,
-      temperature: 0.15,
-    });
+  let outputAttempt = 0;
+  let outputModeIndex = 0;
+  while (outputAttempt < 2) {
+    const outputMode = OUTPUT_MODES[outputModeIndex];
+    let response;
+    try {
+      response = await client.chat.completions.create({
+        model,
+        messages: outputAttempt === 0
+          ? [{ role: "system", content: messages.system }, { role: "user", content: messages.user }]
+          : [{ role: "system", content: messages.system }, { role: "user", content: messages.user }, { role: "assistant", content: priorContent || "(empty response)" }, { role: "user", content: `Repair the response. ${repairFeedback} Return one complete JSON object with every required field, valid enum value, and no surrounding text.` }],
+        ...(outputMode === "strict_schema" ? { response_format: responseFormat } : {}),
+        ...(outputMode === "json_object" ? { response_format: { type: "json_object" as const } } : {}),
+        max_tokens: maxTokens,
+      });
+    } catch (error) {
+      if (isOutputModeRejection(error) && outputModeIndex < OUTPUT_MODES.length - 1) {
+        outputModeIndex += 1;
+        continue;
+      }
+      throw error;
+    }
+    outputAttempt += 1;
     const choice = response.choices[0];
     if (choice?.message?.refusal) throw new Error("The model refused to generate the requested structured result.");
     const content = choice?.message?.content;
@@ -76,7 +96,7 @@ export async function requestValidatedJson<T>(kind: ModelKind, messages: { syste
       repairFeedback = "The previous response was not a valid standalone JSON object.";
     }
   }
-  throw new Error("The model did not satisfy the required JSON Schema after two attempts. Use a model that supports strict Structured Outputs.");
+  throw new Error("The model returned unusable data after two attempts. Try Analyze again; if it continues, use the default gpt-4.1-mini model.");
 }
 
 export function publicBrowserLlmError(error: unknown) {
@@ -84,7 +104,6 @@ export function publicBrowserLlmError(error: unknown) {
     if (error.status === 401 || error.status === 403) return "The provider rejected this API key or its permissions.";
     if (error.status === 429) return "The provider rate limit was reached. Wait briefly, then try again.";
     if (error.status && error.status >= 500) return "The model provider is temporarily unavailable. Try again shortly.";
-    if (error.status === 400 && /response[_ ]format|json[_ ]schema|structured output|schema/i.test(error.message)) return "This model or provider does not support strict JSON Schema output. Use an OpenAI model with Structured Outputs support, such as gpt-4.1-mini.";
     return `The provider rejected the request${error.status ? ` (HTTP ${error.status})` : ""}. Check the base URL and model names.`;
   }
   if (error instanceof Error) {
