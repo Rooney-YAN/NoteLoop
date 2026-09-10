@@ -48,7 +48,6 @@ export default function Home() {
     const savedBaseURL = readStoredValue(window.localStorage, "noteloop.api.baseURL");
     const savedAnalyzeModel = readStoredValue(window.localStorage, "noteloop.api.analyzeModel");
     const savedDiagnoseModel = readStoredValue(window.localStorage, "noteloop.api.diagnoseModel");
-    const savedJsonMode = readStoredValue(window.localStorage, "noteloop.api.jsonMode");
     const savedKey = readStoredValue(window.sessionStorage, "noteloop.api.key");
     const timer = window.setTimeout(() => {
       if (savedCourse && isCourseId(savedCourse)) setCourse(savedCourse);
@@ -58,7 +57,6 @@ export default function Home() {
         baseURL: savedBaseURL || DEFAULT_BROWSER_LLM_CONFIG.baseURL,
         analyzeModel: savedAnalyzeModel || DEFAULT_BROWSER_LLM_CONFIG.analyzeModel,
         diagnoseModel: savedDiagnoseModel || DEFAULT_BROWSER_LLM_CONFIG.diagnoseModel,
-        jsonMode: savedJsonMode === null ? DEFAULT_BROWSER_LLM_CONFIG.jsonMode : savedJsonMode === "true",
       });
       setStorageReady(true);
     }, 0);
@@ -74,7 +72,6 @@ export default function Home() {
     writeStoredValue(window.localStorage, "noteloop.api.baseURL", apiConfig.baseURL);
     writeStoredValue(window.localStorage, "noteloop.api.analyzeModel", apiConfig.analyzeModel);
     writeStoredValue(window.localStorage, "noteloop.api.diagnoseModel", apiConfig.diagnoseModel);
-    writeStoredValue(window.localStorage, "noteloop.api.jsonMode", String(apiConfig.jsonMode));
   }, [apiConfig, storageReady]);
 
   useEffect(() => {

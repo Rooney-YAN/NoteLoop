@@ -14,6 +14,8 @@ Diagnosis model: gpt-4.1-mini
 
 The key is stored only in `sessionStorage` for the current browser tab. Closing the tab forgets it. PDF extraction also runs locally in the browser; the source PDF is not uploaded as a file.
 
+Every model request uses strict Structured Outputs (`json_schema` with `strict: true`) generated from the same Zod schema used for local validation. The selected model and OpenAI-compatible provider must support JSON Schema response formats; plain JSON mode is intentionally not used because it cannot guarantee the required fields and enum values.
+
 This browser-only design is intended for a personal demo. A browser cannot provide server-grade protection for API credentials, so use a temporary or restricted project key on a trusted device. Never hard-code a key or commit one to GitHub.
 
 ## Local development
