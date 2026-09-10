@@ -44,6 +44,25 @@ button:disabled { cursor: not-allowed; }
 .privacy-dot { width: 7px; height: 7px; border-radius: 50%; background: #60d2ac; }
 
 .main { max-width: 1180px; margin: 0 auto; padding: 30px 28px 70px; }
+.api-setup { margin-bottom: 20px; border: 1px solid #cbd7e6; background: #f8fbff; box-shadow: 0 5px 20px rgba(16,35,63,.04); }
+.api-setup.configured { border-color: #a9cfbf; background: #f7fcfa; }
+.api-setup-main { padding: 18px 20px; display: grid; grid-template-columns: 1fr minmax(300px, 440px); gap: 28px; align-items: end; }
+.api-title-row { display: flex; align-items: center; gap: 10px; }
+.api-title-row h2 { margin: 0; font: 700 1.12rem Georgia, 'Times New Roman', serif; }
+.api-setup-main p { margin: 6px 0 0; color: var(--muted); font-size: .84rem; line-height: 1.45; max-width: 620px; }
+.connection-chip { display: inline-flex; padding: 3px 8px; border-radius: 999px; background: var(--amber-soft); color: #8a4b0c; font-size: .7rem; font-weight: 800; letter-spacing: .035em; text-transform: uppercase; }
+.connection-chip.ready { background: var(--green-soft); color: var(--green); }
+.api-key-field { display: grid; grid-template-columns: auto 1fr auto; gap: 9px; align-items: center; }
+.api-key-field label, .api-settings-grid label { color: #34475f; font-size: .78rem; font-weight: 800; }
+.api-key-field input, .api-settings-grid input:not([type="checkbox"]) { width: 100%; min-width: 0; height: 40px; border: 1px solid #bfcad7; border-radius: 5px; background: white; padding: 0 11px; color: var(--ink); outline: none; }
+.api-key-field input:focus, .api-settings-grid input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(35,88,213,.12); }
+.api-advanced { border-top: 1px solid #dce4ed; padding: 11px 20px 14px; }
+.api-advanced summary { width: fit-content; color: var(--blue); cursor: pointer; font-size: .8rem; font-weight: 700; }
+.api-settings-grid { display: grid; grid-template-columns: 1.3fr 1fr 1fr auto; gap: 14px; align-items: end; padding-top: 13px; }
+.api-settings-grid label:not(.checkbox-label) { display: grid; gap: 6px; }
+.checkbox-label { min-height: 40px; display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.checkbox-label input { width: 16px; height: 16px; accent-color: var(--blue); }
+.api-caution { margin: 0; padding: 10px 20px; border-top: 1px solid #f0d6b1; background: #fff9ef; color: #79501e; font-size: .76rem; line-height: 1.45; }
 .stepper { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); background: var(--paper); margin-bottom: 24px; }
 .step { position: relative; padding: 15px 18px; color: #718095; font-size: 0.85rem; border-right: 1px solid var(--line); display: flex; align-items: center; gap: 10px; }
 .step:last-child { border-right: 0; }
@@ -158,6 +177,10 @@ button:disabled { cursor: not-allowed; }
 @media (max-width: 800px) {
   .topbar-inner, .main { padding-left: 17px; padding-right: 17px; }
   .privacy { display: none; }
+  .api-setup-main { grid-template-columns: 1fr; gap: 15px; }
+  .api-settings-grid { grid-template-columns: 1fr; }
+  .api-key-field { grid-template-columns: 1fr auto; }
+  .api-key-field label { grid-column: 1 / -1; }
   .step { padding: 12px 6px; justify-content: center; }
   .step-label { display: none; }
   .input-grid, .tri-grid, .diagnosis-grid, .review-grid { grid-template-columns: 1fr; }

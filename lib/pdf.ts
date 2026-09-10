@@ -1,4 +1,3 @@
-import "server-only";
 import { extractText, getDocumentProxy } from "unpdf";
 
 export const MAX_PDF_BYTES = 15 * 1024 * 1024;

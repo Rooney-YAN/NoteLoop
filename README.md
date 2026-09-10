@@ -1,57 +1,52 @@
 # NoteLoop
 
-NoteLoop is a local-first study diagnostic app. It compares course material with a student's own notes, tests uncertain areas, diagnoses knowledge state, and returns only the smallest worthwhile Markdown patch. It does not generate replacement notes.
+NoteLoop is a browser-only study diagnostic demo. It compares a PDF with a student's notes, tests uncertain areas, diagnoses knowledge state, and returns a minimal Markdown patch.
 
-## Install
+## Use the hosted demo
 
-Requirements: Node.js 20.9 or newer.
+Open the GitHub Pages site and enter an OpenAI-compatible API key. The default provider settings are:
+
+```text
+Base URL: https://api.openai.com/v1
+Analysis model: gpt-4.1-mini
+Diagnosis model: gpt-4.1-mini
+```
+
+The key is stored only in `sessionStorage` for the current browser tab. Closing the tab forgets it. PDF extraction also runs locally in the browser; the source PDF is not uploaded as a file.
+
+This browser-only design is intended for a personal demo. A browser cannot provide server-grade protection for API credentials, so use a temporary or restricted project key on a trusted device. Never hard-code a key or commit one to GitHub.
+
+## Local development
+
+Requirements: Node.js 20.9 or newer and pnpm.
 
 ```bash
 pnpm install
-```
-
-Copy `.env.example` to `.env.local`, then configure one OpenAI-compatible provider. Keys stay on the server and are never sent to the browser.
-
-## Environment configuration
-
-```dotenv
-LLM_API_KEY=your-key
-LLM_BASE_URL=https://api.openai.com/v1
-LLM_MODEL_ANALYZE=gpt-4.1-mini
-LLM_MODEL_DIAGNOSE=gpt-4.1-mini
-LLM_JSON_MODE=true
-```
-
-The app uses the OpenAI JavaScript SDK's `chat.completions.create()` method, so the same variables can target official OpenAI, DeepSeek, or a compatible relay. `LLM_JSON_MODE=true` adds `{ "type": "json_object" }`; set it to `false` only for providers that reject that option. Each response is parsed and validated with Zod, with one repair retry for empty, invalid, or schema-mismatched output.
-
-### DeepSeek example
-
-```dotenv
-LLM_API_KEY=your-deepseek-key
-LLM_BASE_URL=https://api.deepseek.com
-LLM_MODEL_ANALYZE=deepseek-v4-pro
-LLM_MODEL_DIAGNOSE=deepseek-v4-flash
-LLM_JSON_MODE=true
-```
-
-Use model names enabled for your account if these example names are unavailable.
-
-### Generic relay example
-
-```dotenv
-LLM_API_KEY=your-relay-key
-LLM_BASE_URL=<provider-supplied-base-url>
-LLM_MODEL_ANALYZE=provider/model-name
-LLM_MODEL_DIAGNOSE=provider/model-name
-LLM_JSON_MODE=true
-```
-
-## Run
-
-```bash
 pnpm dev
 ```
 
-Open `http://localhost:3000`. In development only, if `LLM_API_KEY` is absent, NoteLoop uses deterministic demo responses so the complete UI can be tested without a paid call. Production builds never fall back to mock responses.
+Open `http://localhost:3000`.
 
-PDFs are text-extracted on the app server and are never uploaded as files to the LLM provider. This MVP does not include OCR or diagram/image understanding.
+## Static build
+
+```bash
+pnpm build
+```
+
+The export is written to `out/`. No Node.js server or environment variables are required after the build.
+
+## GitHub Pages
+
+The included workflow deploys every push to `main`. In the repository, open **Settings → Pages** and set **Source** to **GitHub Actions**. The published site will be available at:
+
+```text
+https://rooney-yan.github.io/NoteLoop/
+```
+
+The demo supports OpenAI and compatible providers that accept browser cross-origin requests. If a provider blocks browser requests, use a different compatible endpoint or switch back to a server-backed deployment.
+
+## Limitations
+
+- PDF text extraction does not include OCR or diagram/image understanding.
+- Prompts and diagnostic reference criteria necessarily run in the browser in this static edition.
+- API usage is billed by the provider associated with the key entered in the page.
