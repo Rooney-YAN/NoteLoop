@@ -43,6 +43,8 @@ The included workflow deploys every push to `main`. In the repository, open **Se
 https://rooney-yan.github.io/NoteLoop/
 ```
 
+If the workflow reports `Get Pages site failed` or HTTP 404 in the **Configure Pages** step, Pages has not been enabled yet. Complete the one-time **Settings → Pages → Source → GitHub Actions** selection, then re-run the failed workflow.
+
 The demo supports OpenAI and compatible providers that accept browser cross-origin requests. If a provider blocks browser requests, use a different compatible endpoint or switch back to a server-backed deployment.
 
 ## Limitations
