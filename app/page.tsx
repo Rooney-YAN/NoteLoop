@@ -9,7 +9,7 @@ import { DiagnosisStep } from "@/components/DiagnosisStep";
 import { isCourseId, type CourseId } from "@/lib/courseProfiles";
 import { buildAnalysisMessages, buildDiagnosisMessages } from "@/lib/prompts";
 import { analysisSchema, analyzeRequestSchema, diagnosisSchema, diagnoseRequestSchema, type Analysis, type Diagnosis } from "@/lib/schemas";
-import { DEFAULT_BROWSER_LLM_CONFIG, publicBrowserLlmError, type BrowserLlmConfig } from "@/lib/browserLlm";
+import { DEFAULT_BROWSER_LLM_CONFIG, PROVIDER_DEFAULTS, publicBrowserLlmError, type BrowserLlmConfig, type ProviderPreset } from "@/lib/browserLlm";
 
 type Step = 1 | 2 | 3 | 4;
 type PdfInfo = { name: string; characters: number; pages: number; warnings: string[] } | null;
@@ -24,6 +24,17 @@ function writeStoredValue(storage: Storage, key: string, value: string) {
 
 function removeStoredValue(storage: Storage, key: string) {
   try { storage.removeItem(key); } catch { /* Persistence is optional. */ }
+}
+
+function restoredProvider(value: string | null, baseURL: string | null): ProviderPreset {
+  if (value === "openai" || value === "deepseek" || value === "custom") return value;
+  try {
+    const hostname = new URL(baseURL ?? "").hostname.toLowerCase();
+    if (hostname === "api.deepseek.com") return "deepseek";
+    if (hostname === "api.openai.com") return "openai";
+    if (hostname) return "custom";
+  } catch { /* Invalid old settings fall back to OpenAI. */ }
+  return "openai";
 }
 
 export default function Home() {
@@ -48,15 +59,19 @@ export default function Home() {
     const savedBaseURL = readStoredValue(window.localStorage, "noteloop.api.baseURL");
     const savedAnalyzeModel = readStoredValue(window.localStorage, "noteloop.api.analyzeModel");
     const savedDiagnoseModel = readStoredValue(window.localStorage, "noteloop.api.diagnoseModel");
+    const savedProvider = readStoredValue(window.localStorage, "noteloop.api.provider");
     const savedKey = readStoredValue(window.sessionStorage, "noteloop.api.key");
     const timer = window.setTimeout(() => {
       if (savedCourse && isCourseId(savedCourse)) setCourse(savedCourse);
       if (savedNotes) setNotes(savedNotes);
+      const provider = restoredProvider(savedProvider, savedBaseURL);
+      const defaults = provider === "custom" ? DEFAULT_BROWSER_LLM_CONFIG : PROVIDER_DEFAULTS[provider];
       setApiConfig({
         apiKey: savedKey ?? "",
-        baseURL: savedBaseURL || DEFAULT_BROWSER_LLM_CONFIG.baseURL,
-        analyzeModel: savedAnalyzeModel || DEFAULT_BROWSER_LLM_CONFIG.analyzeModel,
-        diagnoseModel: savedDiagnoseModel || DEFAULT_BROWSER_LLM_CONFIG.diagnoseModel,
+        provider,
+        baseURL: provider === "custom" ? savedBaseURL || defaults.baseURL : defaults.baseURL,
+        analyzeModel: provider === "custom" ? savedAnalyzeModel || defaults.analyzeModel : defaults.analyzeModel,
+        diagnoseModel: provider === "custom" ? savedDiagnoseModel || defaults.diagnoseModel : defaults.diagnoseModel,
       });
       setStorageReady(true);
     }, 0);
@@ -69,6 +84,7 @@ export default function Home() {
     if (!storageReady) return;
     if (apiConfig.apiKey) writeStoredValue(window.sessionStorage, "noteloop.api.key", apiConfig.apiKey);
     else removeStoredValue(window.sessionStorage, "noteloop.api.key");
+    writeStoredValue(window.localStorage, "noteloop.api.provider", apiConfig.provider);
     writeStoredValue(window.localStorage, "noteloop.api.baseURL", apiConfig.baseURL);
     writeStoredValue(window.localStorage, "noteloop.api.analyzeModel", apiConfig.analyzeModel);
     writeStoredValue(window.localStorage, "noteloop.api.diagnoseModel", apiConfig.diagnoseModel);
