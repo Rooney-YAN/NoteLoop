@@ -26,7 +26,7 @@ export function InputStep({ course, setCourse, notes, setNotes, pdfInfo, extract
         <div className="notice">Text-first analysis: diagrams and image-only slide content may not be fully captured.</div>
         {pdfInfo?.warnings.map((warning) => <div className="notice warning" key={warning}>{warning}</div>)}
         {error && <div className="error" role="alert">{error}</div>}
-        <div className="actions"><button className="button button-primary" type="button" onClick={onAnalyze} disabled={!pdfInfo || !notes.trim() || extracting || analyzing}>{analyzing ? <span className="loading"><span className="spinner" />Analyzing coverage…</span> : "Analyze"}</button></div>
+        <div className="actions"><button className="button button-primary" type="button" onClick={onAnalyze} disabled={!pdfInfo || pdfInfo.characters === 0 || !notes.trim() || extracting || analyzing}>{analyzing ? <span className="loading"><span className="spinner" />Analyzing coverage…</span> : "Analyze"}</button></div>
       </div>
     </section>
   );

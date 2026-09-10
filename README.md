@@ -40,7 +40,7 @@ Use model names enabled for your account if these example names are unavailable.
 
 ```dotenv
 LLM_API_KEY=your-relay-key
-LLM_BASE_URL=https://relay.example.com/v1
+LLM_BASE_URL=<provider-supplied-base-url>
 LLM_MODEL_ANALYZE=provider/model-name
 LLM_MODEL_DIAGNOSE=provider/model-name
 LLM_JSON_MODE=true

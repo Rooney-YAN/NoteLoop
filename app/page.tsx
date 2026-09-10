@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { InputStep } from "@/components/InputStep";
 import { CoverageStep } from "@/components/CoverageStep";
 import { QuizStep, type AnswerState } from "@/components/QuizStep";
@@ -18,6 +18,14 @@ async function jsonRequest<T>(url: string, init: RequestInit): Promise<T> {
   return payload as T;
 }
 
+function readStoredValue(key: string) {
+  try { return window.localStorage.getItem(key); } catch { return null; }
+}
+
+function writeStoredValue(key: string, value: string) {
+  try { window.localStorage.setItem(key, value); } catch { /* Persistence is optional. */ }
+}
+
 export default function Home() {
   const [step, setStep] = useState<Step>(1);
   const [course, setCourse] = useState<CourseId>("COMP2012");
@@ -32,10 +40,11 @@ export default function Home() {
   const [error, setError] = useState("");
   const [mockMode, setMockMode] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
+  const requestInFlight = useRef(false);
 
   useEffect(() => {
-    const savedCourse = window.localStorage.getItem("noteloop.course");
-    const savedNotes = window.localStorage.getItem("noteloop.notes");
+    const savedCourse = readStoredValue("noteloop.course");
+    const savedNotes = readStoredValue("noteloop.notes");
     const timer = window.setTimeout(() => {
       if (savedCourse && isCourseId(savedCourse)) setCourse(savedCourse);
       if (savedNotes) setNotes(savedNotes);
@@ -43,8 +52,8 @@ export default function Home() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
-  useEffect(() => { if (storageReady) window.localStorage.setItem("noteloop.course", course); }, [course, storageReady]);
-  useEffect(() => { if (!storageReady) return; const timer = window.setTimeout(() => window.localStorage.setItem("noteloop.notes", notes), 250); return () => window.clearTimeout(timer); }, [notes, storageReady]);
+  useEffect(() => { if (storageReady) writeStoredValue("noteloop.course", course); }, [course, storageReady]);
+  useEffect(() => { if (!storageReady) return; const timer = window.setTimeout(() => writeStoredValue("noteloop.notes", notes), 250); return () => window.clearTimeout(timer); }, [notes, storageReady]);
   useEffect(() => {
     const context = document.modelContext;
     if (!context?.registerTool) return;
@@ -95,38 +104,45 @@ export default function Home() {
     setError("");
     if (!/\.(md|txt)$/i.test(file.name)) { setError("Notes must be a .md or .txt file."); return; }
     if (file.size > 500_000) { setError("The notes file is too large. Keep the note under 80,000 characters."); return; }
-    const text = await file.text();
-    if (text.length > 80_000) { setError("The notes file exceeds the 80,000-character limit."); return; }
-    setNotes(text);
+    try {
+      const text = await file.text();
+      if (text.length > 80_000) { setError("The notes file exceeds the 80,000-character limit."); return; }
+      setNotes(text);
+    } catch {
+      setError("Could not read that notes file. Try a plain UTF-8 .md or .txt file.");
+    }
   };
 
   const onAnalyze = async () => {
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
     setWorking(true); setError("");
     try {
       const result = await jsonRequest<{ data: Analysis; mockMode: boolean }>("/api/analyze", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ course, courseMaterial, notes }) });
-      setAnalysis(result.data); setMockMode(result.mockMode); setStep(2); window.scrollTo({ top: 0, behavior: "smooth" });
+      setAnalysis(result.data); setDiagnosis(null); setAnswers({}); setMockMode(result.mockMode); setStep(2); window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Analysis failed."); }
-    finally { setWorking(false); }
+    finally { requestInFlight.current = false; setWorking(false); }
   };
 
   const startQuiz = () => {
     if (!analysis) return;
-    setAnswers(Object.fromEntries(analysis.questions.map((question) => [question.id, { answer: "", confidence: null }]))); setError(""); setStep(3); window.scrollTo({ top: 0, behavior: "smooth" });
+    setAnswers((current) => analysis.questions.every((question) => current[question.id]) ? current : Object.fromEntries(analysis.questions.map((question) => [question.id, { answer: "", confidence: null }]))); setError(""); setStep(3); window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const submitAnswers = async () => {
-    if (!analysis) return;
+    if (!analysis || requestInFlight.current) return;
+    requestInFlight.current = true;
     setWorking(true); setError("");
     try {
       const answerList = analysis.questions.map((question) => ({ questionId: question.id, answer: answers[question.id]?.answer ?? "", confidence: answers[question.id]?.confidence ?? 0 }));
       const result = await jsonRequest<{ data: Diagnosis; mockMode: boolean }>("/api/diagnose", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ course, coverage: analysis.coverage, possibleErrors: analysis.possibleErrors, questions: analysis.questions, answers: answerList }) });
       setDiagnosis(result.data); setMockMode(result.mockMode); setStep(4); window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Diagnosis failed."); }
-    finally { setWorking(false); }
+    finally { requestInFlight.current = false; setWorking(false); }
   };
 
   const reset = () => { setStep(1); setAnalysis(null); setDiagnosis(null); setAnswers({}); setError(""); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const labels = ["Input", "Coverage", "Quiz", "Diagnosis"];
 
-  return <div className="shell"><header className="topbar"><div className="topbar-inner"><div className="brand"><div className="brand-mark">N</div><div><h1>NoteLoop</h1><p>Diagnose understanding. Patch only what matters.</p></div></div><div className="privacy"><span className="privacy-dot" />Your API key stays server-side</div></div></header><main className="main"><nav className="stepper" aria-label="Study diagnostic progress">{labels.map((label, index) => { const number = (index + 1) as Step; return <div key={label} className={`step ${step === number ? "active" : ""} ${step > number ? "done" : ""}`} aria-current={step === number ? "step" : undefined}><span className="step-number">{step > number ? "✓" : number}</span><span className="step-label">{label}</span></div>; })}</nav>{step === 1 && <InputStep course={course} setCourse={setCourse} notes={notes} setNotes={setNotes} pdfInfo={pdfInfo} extracting={extracting} analyzing={working} error={error} onPdf={onPdf} onNotesFile={onNotesFile} onAnalyze={onAnalyze} />}{step === 2 && analysis && <CoverageStep analysis={analysis} mockMode={mockMode} onStartQuiz={startQuiz} />}{step === 3 && analysis && <QuizStep questions={analysis.questions} answers={answers} setAnswers={setAnswers} submitting={working} error={error} onSubmit={submitAnswers} />}{step === 4 && diagnosis && <DiagnosisStep diagnosis={diagnosis} mockMode={mockMode} onReset={reset} />}</main></div>;
+  return <div className="shell"><header className="topbar"><div className="topbar-inner"><div className="brand"><div className="brand-mark">N</div><div><h1>NoteLoop</h1><p>Diagnose understanding. Patch only what matters.</p></div></div><div className="privacy"><span className="privacy-dot" />Your API key stays server-side</div></div></header><main className="main"><nav className="stepper" aria-label="Study diagnostic progress">{labels.map((label, index) => { const number = (index + 1) as Step; return <div key={label} className={`step ${step === number ? "active" : ""} ${step > number ? "done" : ""}`} aria-current={step === number ? "step" : undefined}><span className="step-number">{step > number ? "✓" : number}</span><span className="step-label">{label}</span></div>; })}</nav>{step === 1 && <InputStep course={course} setCourse={setCourse} notes={notes} setNotes={setNotes} pdfInfo={pdfInfo} extracting={extracting} analyzing={working} error={error} onPdf={onPdf} onNotesFile={onNotesFile} onAnalyze={onAnalyze} />}{step === 2 && analysis && <CoverageStep analysis={analysis} mockMode={mockMode} onBack={() => setStep(1)} onStartQuiz={startQuiz} />}{step === 3 && analysis && <QuizStep questions={analysis.questions} answers={answers} setAnswers={setAnswers} submitting={working} error={error} onBack={() => setStep(2)} onSubmit={submitAnswers} />}{step === 4 && diagnosis && <DiagnosisStep diagnosis={diagnosis} mockMode={mockMode} onBack={() => setStep(3)} onReset={reset} />}</main></div>;
 }

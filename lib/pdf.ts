@@ -38,17 +38,28 @@ export function normalizeExtractedText(text: string) {
 }
 
 export async function extractPdfText(data: Uint8Array) {
-  const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("PDF extraction timed out.")), 20_000));
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error("PDF extraction timed out.")), 20_000);
+  });
   const extraction = (async () => {
     const pdf = await getDocumentProxy(data, { maxImageSize: 16_777_216 });
-    if (pdf.numPages > MAX_PAGES) throw new Error(`This PDF has ${pdf.numPages} pages. The current limit is ${MAX_PAGES}.`);
-    const result = await extractText(pdf, { mergePages: false });
-    const pages = Array.isArray(result.text) ? result.text : [result.text];
-    const text = normalizeExtractedText(removeRepeatedEdges(pages).join("\n\n"));
-    if (text.length > MAX_SOURCE_CHARS) {
-      throw new Error(`Extracted text is ${text.length.toLocaleString()} characters. The current limit is ${MAX_SOURCE_CHARS.toLocaleString()}. Split the PDF into a smaller lecture or section.`);
+    try {
+      if (pdf.numPages > MAX_PAGES) throw new Error(`This PDF has ${pdf.numPages} pages. The current limit is ${MAX_PAGES}.`);
+      const result = await extractText(pdf, { mergePages: false });
+      const pages = Array.isArray(result.text) ? result.text : [result.text];
+      const text = normalizeExtractedText(removeRepeatedEdges(pages).join("\n\n"));
+      if (text.length > MAX_SOURCE_CHARS) {
+        throw new Error(`Extracted text is ${text.length.toLocaleString()} characters. The current limit is ${MAX_SOURCE_CHARS.toLocaleString()}. Split the PDF into a smaller lecture or section.`);
+      }
+      return { text, pages: result.totalPages };
+    } finally {
+      await pdf.loadingTask.destroy();
     }
-    return { text, pages: result.totalPages };
   })();
-  return Promise.race([extraction, timeout]);
+  try {
+    return await Promise.race([extraction, timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 }
