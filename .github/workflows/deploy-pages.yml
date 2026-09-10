@@ -20,17 +20,15 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+      - name: Set up pnpm and Node.js
+        uses: pnpm/setup@v1
         with:
           version: 11.19.0
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
+          runtime: node@24
           cache: pnpm
+          install: false
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Type-check
         run: pnpm typecheck
       - name: Lint
