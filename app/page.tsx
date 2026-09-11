@@ -4,12 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { ApiSetup } from "@/components/ApiSetup";
 import { InputStep } from "@/components/InputStep";
 import { CoverageStep } from "@/components/CoverageStep";
-import { QuizStep, type AnswerState } from "@/components/QuizStep";
+import { QuizStep } from "@/components/QuizStep";
 import { DiagnosisStep } from "@/components/DiagnosisStep";
 import { isCourseId, type CourseId } from "@/lib/courseProfiles";
 import { buildAnalysisMessages, buildDiagnosisMessages } from "@/lib/prompts";
-import { analysisSchema, analyzeRequestSchema, diagnosisSchema, diagnoseRequestSchema, type Analysis, type Diagnosis } from "@/lib/schemas";
+import { analysisSchema, analyzeRequestSchema, diagnoseRequestSchema, type Analysis, type Diagnosis } from "@/lib/schemas";
 import { DEFAULT_BROWSER_LLM_CONFIG, PROVIDER_DEFAULTS, publicBrowserLlmError, type BrowserLlmConfig, type ProviderPreset } from "@/lib/browserLlm";
+import { appendPatches, createAnswerState, createDiagnosisSchema, equivalentPatchResults, normalizeDiagnosis, toQuizAnswers, type AnswerState } from "@/lib/quiz";
 
 type Step = 1 | 2 | 3 | 4;
 type PdfInfo = { name: string; characters: number; pages: number; warnings: string[] } | null;
@@ -46,6 +47,8 @@ export default function Home() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
   const [answers, setAnswers] = useState<AnswerState>({});
+  const [appliedPatchIds, setAppliedPatchIds] = useState<Set<string>>(new Set());
+  const [patchHistory, setPatchHistory] = useState<Array<{ notes: string; appliedPatchIds: Set<string> }>>([]);
   const [extracting, setExtracting] = useState(false);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
@@ -105,7 +108,7 @@ export default function Home() {
         const candidate = input as { course?: unknown; notes?: unknown };
         if (typeof candidate.course !== "string" || !isCourseId(candidate.course)) throw new Error("Unsupported course.");
         if (typeof candidate.notes !== "string" || candidate.notes.length > 80_000) throw new Error("Notes must be text under 80,000 characters.");
-        setCourse(candidate.course); setNotes(candidate.notes); setStep(1); setAnalysis(null); setDiagnosis(null); setAnswers({}); setError("");
+        setCourse(candidate.course); setNotes(candidate.notes); setStep(1); setAnalysis(null); setDiagnosis(null); setAnswers({}); setAppliedPatchIds(new Set()); setPatchHistory([]); setError("");
         return { course: candidate.course, noteCharacters: candidate.notes.length, inputStepReady: true, pdfRequired: !pdfInfo, apiKeyRequired: !apiConfig.apiKey };
       },
     }, { signal: lifecycle.signal })).catch(() => undefined);
@@ -149,33 +152,50 @@ export default function Home() {
     try {
       const { requestValidatedJson } = await import("@/lib/browserLlm");
       const data = await requestValidatedJson("analyze", buildAnalysisMessages(course, courseMaterial, notes), analysisSchema, 5_000, apiConfig);
-      setAnalysis(data); setDiagnosis(null); setAnswers({}); setStep(2); window.scrollTo({ top: 0, behavior: "smooth" });
+      setAnalysis(data); setDiagnosis(null); setAnswers({}); setAppliedPatchIds(new Set()); setPatchHistory([]); setStep(2); window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (caught) { setError(publicBrowserLlmError(caught)); }
     finally { requestInFlight.current = false; setWorking(false); }
   };
 
   const startQuiz = () => {
     if (!analysis) return;
-    setAnswers((current) => analysis.questions.every((question) => current[question.id]) ? current : Object.fromEntries(analysis.questions.map((question) => [question.id, { answer: "", confidence: null }])));
+    setAnswers((current) => createAnswerState(analysis.questions, current));
     setError(""); setStep(3); window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const submitAnswers = async () => {
     if (!analysis || requestInFlight.current) return;
-    const answerList = analysis.questions.map((question) => ({ questionId: question.id, answer: answers[question.id]?.answer ?? "", confidence: answers[question.id]?.confidence ?? 0 }));
+    let answerList;
+    try { answerList = toQuizAnswers(analysis.questions, answers); }
+    catch { setError("Answer every question and choose a confidence level before submitting."); return; }
     const input = diagnoseRequestSchema.safeParse({ course, coverage: analysis.coverage, possibleErrors: analysis.possibleErrors, questions: analysis.questions, answers: answerList });
     if (!input.success) { setError("Answer every question and choose a confidence level before submitting."); return; }
     requestInFlight.current = true; setWorking(true); setError("");
     try {
       const { requestValidatedJson } = await import("@/lib/browserLlm");
-      const data = await requestValidatedJson("diagnose", buildDiagnosisMessages(course, { coverage: analysis.coverage, possibleErrors: analysis.possibleErrors, questions: analysis.questions }, answerList), diagnosisSchema, 4_000, apiConfig);
-      setDiagnosis(data); setStep(4); window.scrollTo({ top: 0, behavior: "smooth" });
+      const dynamicDiagnosisSchema = createDiagnosisSchema(analysis.questions, answerList);
+      const data = await requestValidatedJson("diagnose", buildDiagnosisMessages(course, notes, { coverage: analysis.coverage, possibleErrors: analysis.possibleErrors, questions: analysis.questions }, answerList), dynamicDiagnosisSchema, 6_000, apiConfig);
+      setDiagnosis(normalizeDiagnosis(data, analysis.questions)); setAppliedPatchIds(new Set()); setPatchHistory([]); setStep(4); window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (caught) { setError(publicBrowserLlmError(caught)); }
     finally { requestInFlight.current = false; setWorking(false); }
   };
 
-  const reset = () => { setStep(1); setAnalysis(null); setDiagnosis(null); setAnswers({}); setError(""); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const applyResults = (results: Diagnosis["questionResults"]) => {
+    const expandedResults = diagnosis ? equivalentPatchResults(diagnosis.questionResults, results) : results;
+    const result = appendPatches(notes, expandedResults);
+    if (!result.appliedQuestionIds.length) return;
+    if (result.notes !== notes) { setPatchHistory((history) => [...history, { notes, appliedPatchIds: new Set(appliedPatchIds) }]); setNotes(result.notes); }
+    setAppliedPatchIds((current) => new Set([...current, ...result.appliedQuestionIds]));
+  };
+
+  const undoLastApply = () => {
+    const snapshot = patchHistory.at(-1);
+    if (!snapshot) return;
+    setNotes(snapshot.notes); setAppliedPatchIds(new Set(snapshot.appliedPatchIds)); setPatchHistory((history) => history.slice(0, -1));
+  };
+
+  const reset = () => { setStep(1); setAnalysis(null); setDiagnosis(null); setAnswers({}); setAppliedPatchIds(new Set()); setPatchHistory([]); setError(""); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const labels = ["Input", "Coverage", "Quiz", "Diagnosis"];
 
-  return <div className="shell"><header className="topbar"><div className="topbar-inner"><div className="brand"><div className="brand-mark">N</div><div><h1>NoteLoop</h1><p>Diagnose understanding. Patch only what matters.</p></div></div><div className="privacy"><span className="privacy-dot" />Browser-only demo</div></div></header><main className="main"><nav className="stepper" aria-label="Study diagnostic progress">{labels.map((label, index) => { const number = (index + 1) as Step; return <div key={label} className={`step ${step === number ? "active" : ""} ${step > number ? "done" : ""}`} aria-current={step === number ? "step" : undefined}><span className="step-number">{step > number ? "✓" : number}</span><span className="step-label">{label}</span></div>; })}</nav>{step === 1 && <><ApiSetup config={apiConfig} setConfig={setApiConfig} /><InputStep course={course} setCourse={setCourse} notes={notes} setNotes={setNotes} pdfInfo={pdfInfo} extracting={extracting} analyzing={working} apiReady={Boolean(apiConfig.apiKey.trim())} error={error} onPdf={onPdf} onNotesFile={onNotesFile} onAnalyze={onAnalyze} /></>}{step === 2 && analysis && <CoverageStep analysis={analysis} mockMode={false} onBack={() => setStep(1)} onStartQuiz={startQuiz} />}{step === 3 && analysis && <QuizStep questions={analysis.questions} answers={answers} setAnswers={setAnswers} submitting={working} error={error} onBack={() => setStep(2)} onSubmit={submitAnswers} />}{step === 4 && diagnosis && <DiagnosisStep diagnosis={diagnosis} mockMode={false} onBack={() => setStep(3)} onReset={reset} />}</main></div>;
+  return <div className="shell"><header className="topbar"><div className="topbar-inner"><div className="brand"><div className="brand-mark">N</div><div><h1>NoteLoop</h1><p>Diagnose understanding. Patch only what matters.</p></div></div><div className="privacy"><span className="privacy-dot" />Browser-only demo</div></div></header><main className="main"><nav className="stepper" aria-label="Study diagnostic progress">{labels.map((label, index) => { const number = (index + 1) as Step; return <div key={label} className={`step ${step === number ? "active" : ""} ${step > number ? "done" : ""}`} aria-current={step === number ? "step" : undefined}><span className="step-number">{step > number ? "✓" : number}</span><span className="step-label">{label}</span></div>; })}</nav>{step === 1 && <><ApiSetup config={apiConfig} setConfig={setApiConfig} /><InputStep course={course} setCourse={setCourse} notes={notes} setNotes={setNotes} pdfInfo={pdfInfo} extracting={extracting} analyzing={working} apiReady={Boolean(apiConfig.apiKey.trim())} error={error} onPdf={onPdf} onNotesFile={onNotesFile} onAnalyze={onAnalyze} /></>}{step === 2 && analysis && <CoverageStep analysis={analysis} mockMode={false} onBack={() => setStep(1)} onStartQuiz={startQuiz} />}{step === 3 && analysis && <QuizStep questions={analysis.questions} answers={answers} setAnswers={setAnswers} submitting={working} error={error} onBack={() => setStep(2)} onSubmit={submitAnswers} />}{step === 4 && diagnosis && analysis && <DiagnosisStep diagnosis={diagnosis} questions={analysis.questions} answers={answers} appliedPatchIds={appliedPatchIds} canUndo={patchHistory.length > 0} onApply={applyResults} onUndo={undoLastApply} onBack={() => setStep(3)} onReset={reset} />}</main></div>;
 }

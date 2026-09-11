@@ -19,6 +19,13 @@ The key is stored only in `sessionStorage` for the current browser tab. Closing 
 
 Model output compatibility is provider-aware and automatic. OpenAI uses strict Structured Outputs first. DeepSeek uses its supported JSON Object mode with thinking disabled for faster, more reliable structured responses. Custom relays try conservative OpenAI-compatible request variants. Every returned object must still pass the same local Zod validation before it is displayed.
 
+## Quiz and diagnosis pipeline
+
+- Every analysis produces exactly six questions: two single-choice, two multiple-choice, and two short-answer questions. Cognitive skill (`recall`, `discrimination`, or `transfer`) is tracked separately from the response UI.
+- Choice answers are checked deterministically, while one batched diagnosis request interprets misconceptions and confidence. Short answers are graded by the model against a hidden rubric and reference answer.
+- Diagnosis is displayed per question. Each result may include one small `ADD`, `CORRECT`, or `CLARIFY` Markdown patch, or an explicit `NONE` when no note change is justified.
+- Patches can be copied or appended individually, selected and appended in bulk, skipped, and undone. Equal patch content is deduplicated and the original notes are never overwritten.
+
 This browser-only design is intended for a personal demo. A browser cannot provide server-grade protection for API credentials, so use a temporary or restricted project key on a trusted device. Never hard-code a key or commit one to GitHub.
 
 ## Local development
