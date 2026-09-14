@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { diagnosisSchema, type Diagnosis, type Question, type QuestionResult, type QuizAnswer } from "./schemas";
+import { diagnosisSchema, quizReviewSchema, type Diagnosis, type DraftAnalysis, type Question, type QuestionResult, type QuizAnswer, type QuizReview } from "./schemas";
 
 export type DraftAnswer = {
   responseType: Question["responseType"];
@@ -61,6 +61,32 @@ export function createDiagnosisSchema(questions: Question[], answers: QuizAnswer
       const result = resultsById.get(question.id)!;
       const expected = answer ? objectiveCorrectness(question, answer) : null;
       if (expected && result.correctness !== expected) context.addIssue({ code: "custom", path: ["questionResults", index, "correctness"], message: `Choice grading must be ${expected}.` });
+    });
+  });
+}
+
+/**
+ * The review call is allowed to rewrite wording and distractors, but it cannot
+ * silently change the identity or knowledge-point binding of a drafted item.
+ * This makes the second model a reviewer rather than a second, untracked quiz
+ * generator.
+ */
+export function createQuizReviewSchema(draft: DraftAnalysis): z.ZodType<QuizReview> {
+  return quizReviewSchema.superRefine((review, context) => {
+    const draftById = new Map(draft.questions.map((question) => [question.id, question]));
+    const auditIds = review.audits.map((audit) => audit.questionId);
+    if (new Set(auditIds).size !== auditIds.length || draft.questions.some((question) => !auditIds.includes(question.id))) {
+      context.addIssue({ code: "custom", path: ["audits"], message: "The review must audit every draft question exactly once." });
+    }
+    review.questions.forEach((question, index) => {
+      const original = draftById.get(question.id);
+      if (!original) {
+        context.addIssue({ code: "custom", path: ["questions", index, "id"], message: "Reviewed questions must keep an existing draft question ID." });
+        return;
+      }
+      if (question.coverageTopicId !== original.coverageTopicId) {
+        context.addIssue({ code: "custom", path: ["questions", index, "coverageTopicId"], message: "Review must preserve the draft question's coverage topic ID." });
+      }
     });
   });
 }

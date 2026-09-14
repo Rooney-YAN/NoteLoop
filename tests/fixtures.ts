@@ -1,4 +1,4 @@
-import type { Diagnosis, Question } from "@/lib/schemas";
+import type { Diagnosis, DraftAnalysis, Question, QuizReview } from "@/lib/schemas";
 import { createAnswerState, type AnswerState } from "@/lib/quiz";
 
 const base = (index: number, responseType: Question["responseType"]): Question => ({
@@ -42,4 +42,19 @@ export const diagnosis: Diagnosis = {
   })),
   conceptStates: [{ topic: "Topic 1", state: "SOLID", reason: "Answered correctly." }],
   reviewAgain: [], unstable: [], solid: ["Topic 1"],
+};
+
+export const draftAnalysis: DraftAnalysis = {
+  lectureTitle: "Fixture lecture",
+  outline: [{ topic: "Topic 1", importance: "high" }],
+  coverage: questions.map((question) => ({ id: question.coverageTopicId, topic: question.topic, status: "partial" as const, comment: "Compare this topic." })),
+  possibleErrors: [],
+  redundancy: [],
+  questions,
+};
+
+export const quizReview: QuizReview = {
+  summary: "All six questions were checked for factual correctness, answerability, and topic alignment.",
+  audits: questions.map((question) => ({ questionId: question.id, verdict: "approved" as const, rationale: "The question is answerable from the assigned material." })),
+  questions,
 };

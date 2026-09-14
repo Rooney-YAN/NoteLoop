@@ -8,6 +8,19 @@ export const responseTypeSchema = z.enum(["single_choice", "multiple_choice", "s
 export const correctnessSchema = z.enum(["correct", "partial", "incorrect"]);
 export const conceptStateSchema = z.enum(["SOLID", "KNOWLEDGE_GAP", "CONCEPTUAL_CONFUSION", "REASONING_GAP", "DETAIL_GAP", "CARELESS_ERROR"]);
 export const patchActionSchema = z.enum(["ADD", "CORRECT", "CLARIFY", "NONE"]);
+export const quizAuditVerdictSchema = z.enum(["approved", "revised"]);
+
+export const summaryTopicSchema = z.object({
+  topic: z.string().min(1).max(160),
+  details: z.string().min(1).max(700),
+  importance: importanceSchema,
+});
+
+export const documentSummarySchema = z.object({
+  overview: z.string().min(1).max(1600),
+  topics: z.array(summaryTopicSchema).min(3).max(18),
+  terminology: z.array(z.string().min(1).max(120)).max(30),
+});
 
 const optionSchema = z.object({ id: z.string().min(1).max(20), text: z.string().min(1).max(500) });
 
@@ -46,7 +59,7 @@ export const questionsSchema = z.array(questionSchema).length(QUIZ_QUESTION_COUN
   });
 });
 
-export const analysisSchema = z.object({
+export const draftAnalysisSchema = z.object({
   lectureTitle: z.string().min(1).max(180),
   outline: z.array(z.object({ topic: z.string().min(1).max(160), importance: importanceSchema })).min(1).max(30),
   coverage: z.array(z.object({ id: z.string().min(1).max(40), topic: z.string().min(1).max(160), status: coverageStatusSchema, comment: z.string().min(1).max(600) })).min(1).max(40),
@@ -62,6 +75,24 @@ export const analysisSchema = z.object({
   [...analysis.possibleErrors, ...analysis.redundancy].forEach((item) => {
     if (!topicIds.includes(item.coverageTopicId)) context.addIssue({ code: "custom", path: ["coverageTopicId"], message: "Item must reference an existing coverage topic." });
   });
+});
+
+export const quizAuditSchema = z.object({
+  questionId: z.string().min(1).max(40),
+  verdict: quizAuditVerdictSchema,
+  rationale: z.string().min(1).max(500),
+});
+
+export const quizReviewSchema = z.object({
+  summary: z.string().min(1).max(1000),
+  audits: z.array(quizAuditSchema).length(QUIZ_QUESTION_COUNT),
+  questions: questionsSchema,
+});
+
+export const analysisSchema = draftAnalysisSchema.extend({
+  courseSummary: documentSummarySchema,
+  notesSummary: documentSummarySchema,
+  quizReview: quizReviewSchema.omit({ questions: true }),
 });
 
 export const notePatchSchema = z.object({
@@ -121,6 +152,9 @@ export const diagnoseRequestSchema = z.object({
 });
 
 export type Analysis = z.infer<typeof analysisSchema>;
+export type DraftAnalysis = z.infer<typeof draftAnalysisSchema>;
+export type DocumentSummary = z.infer<typeof documentSummarySchema>;
+export type QuizReview = z.infer<typeof quizReviewSchema>;
 export type Diagnosis = z.infer<typeof diagnosisSchema>;
 export type Question = z.infer<typeof questionSchema>;
 export type QuizAnswer = z.infer<typeof quizAnswerSchema>;

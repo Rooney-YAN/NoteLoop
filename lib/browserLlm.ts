@@ -7,18 +7,21 @@ export type BrowserLlmConfig = {
   provider: ProviderPreset;
   baseURL: string;
   analyzeModel: string;
+  reviewModel: string;
   diagnoseModel: string;
 };
 
-export const PROVIDER_DEFAULTS: Record<Exclude<ProviderPreset, "custom">, Pick<BrowserLlmConfig, "baseURL" | "analyzeModel" | "diagnoseModel">> = {
+export const PROVIDER_DEFAULTS: Record<Exclude<ProviderPreset, "custom">, Pick<BrowserLlmConfig, "baseURL" | "analyzeModel" | "reviewModel" | "diagnoseModel">> = {
   openai: {
     baseURL: "https://api.openai.com/v1",
     analyzeModel: "gpt-4.1-mini",
+    reviewModel: "gpt-4.1-mini",
     diagnoseModel: "gpt-4.1-mini",
   },
   deepseek: {
     baseURL: "https://api.deepseek.com",
     analyzeModel: "deepseek-v4-flash",
+    reviewModel: "deepseek-v4-flash",
     diagnoseModel: "deepseek-v4-flash",
   },
 };
@@ -29,7 +32,7 @@ export const DEFAULT_BROWSER_LLM_CONFIG: BrowserLlmConfig = {
   ...PROVIDER_DEFAULTS.openai,
 };
 
-type ModelKind = "analyze" | "diagnose";
+type ModelKind = "analyze" | "review" | "diagnose";
 type ProviderKind = "openai" | "deepseek" | "relay";
 type OutputMode = "strict_schema" | "json_object" | "prompt_only";
 type RequestVariant = {
@@ -146,10 +149,10 @@ function isCompatibilityRejection(error: unknown) {
 function validatedConfig(kind: ModelKind, config: BrowserLlmConfig) {
   const apiKey = config.apiKey.trim();
   const baseURL = config.baseURL.trim().replace(/\/$/, "");
-  const model = (kind === "analyze" ? config.analyzeModel : config.diagnoseModel).trim();
+  const model = (kind === "analyze" ? config.analyzeModel : kind === "review" ? config.reviewModel : config.diagnoseModel).trim();
   if (!apiKey) throw new Error("Enter an API key before continuing.");
   if (!baseURL) throw new Error("Enter the provider base URL.");
-  if (!model) throw new Error(`Enter a model for ${kind === "analyze" ? "analysis" : "diagnosis"}.`);
+  if (!model) throw new Error(`Enter a model for ${kind === "analyze" ? "analysis" : kind === "review" ? "quiz review" : "diagnosis"}.`);
   try {
     const url = new URL(baseURL);
     if (url.protocol !== "https:" && url.hostname !== "localhost" && url.hostname !== "127.0.0.1") throw new Error();
@@ -187,7 +190,7 @@ export async function requestValidatedJson<T>(kind: ModelKind, messages: { syste
   const endpoint = completionEndpoint(baseURL, provider);
   const responseFormat = zodResponseFormat(
     schema,
-    kind === "analyze" ? "noteloop_analysis" : "noteloop_diagnosis",
+    kind === "analyze" ? "noteloop_analysis" : kind === "review" ? "noteloop_quiz_review" : "noteloop_diagnosis",
     { description: "Complete NoteLoop result matching every required field and constraint." },
   );
   const variants = requestVariants(provider, model);

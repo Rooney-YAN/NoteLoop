@@ -7,10 +7,10 @@ import { CoverageStep } from "@/components/CoverageStep";
 import { QuizStep } from "@/components/QuizStep";
 import { DiagnosisStep } from "@/components/DiagnosisStep";
 import { isCourseId, type CourseId } from "@/lib/courseProfiles";
-import { buildAnalysisMessages, buildDiagnosisMessages } from "@/lib/prompts";
-import { analysisSchema, analyzeRequestSchema, diagnoseRequestSchema, type Analysis, type Diagnosis } from "@/lib/schemas";
+import { buildAnalysisMessages, buildDiagnosisMessages, buildQuizReviewMessages, buildSummaryMessages } from "@/lib/prompts";
+import { analysisSchema, analyzeRequestSchema, diagnoseRequestSchema, documentSummarySchema, draftAnalysisSchema, type Analysis, type Diagnosis } from "@/lib/schemas";
 import { DEFAULT_BROWSER_LLM_CONFIG, PROVIDER_DEFAULTS, publicBrowserLlmError, type BrowserLlmConfig, type ProviderPreset } from "@/lib/browserLlm";
-import { appendPatches, createAnswerState, createDiagnosisSchema, equivalentPatchResults, normalizeDiagnosis, toQuizAnswers, type AnswerState } from "@/lib/quiz";
+import { appendPatches, createAnswerState, createDiagnosisSchema, createQuizReviewSchema, equivalentPatchResults, normalizeDiagnosis, toQuizAnswers, type AnswerState } from "@/lib/quiz";
 
 type Step = 1 | 2 | 3 | 4;
 type PdfInfo = { name: string; characters: number; pages: number; warnings: string[] } | null;
@@ -51,6 +51,7 @@ export default function Home() {
   const [patchHistory, setPatchHistory] = useState<Array<{ notes: string; appliedPatchIds: Set<string> }>>([]);
   const [extracting, setExtracting] = useState(false);
   const [working, setWorking] = useState(false);
+  const [analysisStage, setAnalysisStage] = useState("");
   const [error, setError] = useState("");
   const [storageReady, setStorageReady] = useState(false);
   const [apiConfig, setApiConfig] = useState<BrowserLlmConfig>(DEFAULT_BROWSER_LLM_CONFIG);
@@ -61,6 +62,7 @@ export default function Home() {
     const savedNotes = readStoredValue(window.localStorage, "noteloop.notes");
     const savedBaseURL = readStoredValue(window.localStorage, "noteloop.api.baseURL");
     const savedAnalyzeModel = readStoredValue(window.localStorage, "noteloop.api.analyzeModel");
+    const savedReviewModel = readStoredValue(window.localStorage, "noteloop.api.reviewModel");
     const savedDiagnoseModel = readStoredValue(window.localStorage, "noteloop.api.diagnoseModel");
     const savedProvider = readStoredValue(window.localStorage, "noteloop.api.provider");
     const savedKey = readStoredValue(window.sessionStorage, "noteloop.api.key");
@@ -74,6 +76,7 @@ export default function Home() {
         provider,
         baseURL: provider === "custom" ? savedBaseURL || defaults.baseURL : defaults.baseURL,
         analyzeModel: provider === "custom" ? savedAnalyzeModel || defaults.analyzeModel : defaults.analyzeModel,
+        reviewModel: provider === "custom" ? savedReviewModel || defaults.reviewModel : defaults.reviewModel,
         diagnoseModel: provider === "custom" ? savedDiagnoseModel || defaults.diagnoseModel : defaults.diagnoseModel,
       });
       setStorageReady(true);
@@ -90,6 +93,7 @@ export default function Home() {
     writeStoredValue(window.localStorage, "noteloop.api.provider", apiConfig.provider);
     writeStoredValue(window.localStorage, "noteloop.api.baseURL", apiConfig.baseURL);
     writeStoredValue(window.localStorage, "noteloop.api.analyzeModel", apiConfig.analyzeModel);
+    writeStoredValue(window.localStorage, "noteloop.api.reviewModel", apiConfig.reviewModel);
     writeStoredValue(window.localStorage, "noteloop.api.diagnoseModel", apiConfig.diagnoseModel);
   }, [apiConfig, storageReady]);
 
@@ -151,10 +155,24 @@ export default function Home() {
     requestInFlight.current = true; setWorking(true); setError("");
     try {
       const { requestValidatedJson } = await import("@/lib/browserLlm");
-      const data = await requestValidatedJson("analyze", buildAnalysisMessages(course, courseMaterial, notes), analysisSchema, 5_000, apiConfig);
+      setAnalysisStage("1 / 4 · Summarizing course material…");
+      const courseSummary = await requestValidatedJson("analyze", buildSummaryMessages(course, "course_material", courseMaterial), documentSummarySchema, 2_500, apiConfig);
+      setAnalysisStage("2 / 4 · Summarizing your notes…");
+      const notesSummary = await requestValidatedJson("analyze", buildSummaryMessages(course, "student_notes", notes), documentSummarySchema, 2_000, apiConfig);
+      setAnalysisStage("3 / 4 · Comparing summaries and drafting the diagnostic…");
+      const draft = await requestValidatedJson("analyze", buildAnalysisMessages(course, courseSummary, notesSummary), draftAnalysisSchema, 6_000, apiConfig);
+      setAnalysisStage("4 / 4 · Independently reviewing and correcting the quiz…");
+      const review = await requestValidatedJson("review", buildQuizReviewMessages(course, courseSummary, draft), createQuizReviewSchema(draft), 6_000, apiConfig);
+      const data = analysisSchema.parse({
+        ...draft,
+        courseSummary,
+        notesSummary,
+        questions: review.questions,
+        quizReview: { summary: review.summary, audits: review.audits },
+      });
       setAnalysis(data); setDiagnosis(null); setAnswers({}); setAppliedPatchIds(new Set()); setPatchHistory([]); setStep(2); window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (caught) { setError(publicBrowserLlmError(caught)); }
-    finally { requestInFlight.current = false; setWorking(false); }
+    finally { requestInFlight.current = false; setWorking(false); setAnalysisStage(""); }
   };
 
   const startQuiz = () => {
@@ -197,5 +215,5 @@ export default function Home() {
   const reset = () => { setStep(1); setAnalysis(null); setDiagnosis(null); setAnswers({}); setAppliedPatchIds(new Set()); setPatchHistory([]); setError(""); window.scrollTo({ top: 0, behavior: "smooth" }); };
   const labels = ["Input", "Coverage", "Quiz", "Diagnosis"];
 
-  return <div className="shell"><header className="topbar"><div className="topbar-inner"><div className="brand"><div className="brand-mark">N</div><div><h1>NoteLoop</h1><p>Diagnose understanding. Patch only what matters.</p></div></div><div className="privacy"><span className="privacy-dot" />Browser-only demo</div></div></header><main className="main"><nav className="stepper" aria-label="Study diagnostic progress">{labels.map((label, index) => { const number = (index + 1) as Step; return <div key={label} className={`step ${step === number ? "active" : ""} ${step > number ? "done" : ""}`} aria-current={step === number ? "step" : undefined}><span className="step-number">{step > number ? "✓" : number}</span><span className="step-label">{label}</span></div>; })}</nav>{step === 1 && <><ApiSetup config={apiConfig} setConfig={setApiConfig} /><InputStep course={course} setCourse={setCourse} notes={notes} setNotes={setNotes} pdfInfo={pdfInfo} extracting={extracting} analyzing={working} apiReady={Boolean(apiConfig.apiKey.trim())} error={error} onPdf={onPdf} onNotesFile={onNotesFile} onAnalyze={onAnalyze} /></>}{step === 2 && analysis && <CoverageStep analysis={analysis} mockMode={false} onBack={() => setStep(1)} onStartQuiz={startQuiz} />}{step === 3 && analysis && <QuizStep questions={analysis.questions} answers={answers} setAnswers={setAnswers} submitting={working} error={error} onBack={() => setStep(2)} onSubmit={submitAnswers} />}{step === 4 && diagnosis && analysis && <DiagnosisStep diagnosis={diagnosis} questions={analysis.questions} answers={answers} appliedPatchIds={appliedPatchIds} canUndo={patchHistory.length > 0} onApply={applyResults} onUndo={undoLastApply} onBack={() => setStep(3)} onReset={reset} />}</main></div>;
+  return <div className="shell"><header className="topbar"><div className="topbar-inner"><div className="brand"><div className="brand-mark">N</div><div><h1>NoteLoop</h1><p>Diagnose understanding. Patch only what matters.</p></div></div><div className="privacy"><span className="privacy-dot" />Browser-only demo</div></div></header><main className="main"><nav className="stepper" aria-label="Study diagnostic progress">{labels.map((label, index) => { const number = (index + 1) as Step; return <div key={label} className={`step ${step === number ? "active" : ""} ${step > number ? "done" : ""}`} aria-current={step === number ? "step" : undefined}><span className="step-number">{step > number ? "✓" : number}</span><span className="step-label">{label}</span></div>; })}</nav>{step === 1 && <><ApiSetup config={apiConfig} setConfig={setApiConfig} /><InputStep course={course} setCourse={setCourse} notes={notes} setNotes={setNotes} pdfInfo={pdfInfo} extracting={extracting} analyzing={working} analysisStage={analysisStage} apiReady={Boolean(apiConfig.apiKey.trim())} error={error} onPdf={onPdf} onNotesFile={onNotesFile} onAnalyze={onAnalyze} /></>}{step === 2 && analysis && <CoverageStep analysis={analysis} mockMode={false} onBack={() => setStep(1)} onStartQuiz={startQuiz} />}{step === 3 && analysis && <QuizStep questions={analysis.questions} answers={answers} setAnswers={setAnswers} submitting={working} error={error} onBack={() => setStep(2)} onSubmit={submitAnswers} />}{step === 4 && diagnosis && analysis && <DiagnosisStep diagnosis={diagnosis} questions={analysis.questions} answers={answers} appliedPatchIds={appliedPatchIds} canUndo={patchHistory.length > 0} onApply={applyResults} onUndo={undoLastApply} onBack={() => setStep(3)} onReset={reset} />}</main></div>;
 }

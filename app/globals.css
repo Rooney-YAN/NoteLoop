@@ -60,7 +60,7 @@ button:disabled { cursor: not-allowed; }
 .api-provider-field select:focus, .api-key-field input:focus, .api-settings-grid input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(35,88,213,.12); }
 .api-advanced { border-top: 1px solid #dce4ed; padding: 11px 20px 14px; }
 .api-advanced summary { width: fit-content; color: var(--blue); cursor: pointer; font-size: .8rem; font-weight: 700; }
-.api-settings-grid { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 14px; align-items: end; padding-top: 13px; }
+.api-settings-grid { display: grid; grid-template-columns: 1.3fr repeat(3, 1fr); gap: 14px; align-items: end; padding-top: 13px; }
 .api-settings-grid label { display: grid; gap: 6px; }
 .api-schema-note { margin: 10px 0 0; color: #52647b; font-size: .76rem; line-height: 1.45; }
 .api-caution { margin: 0; padding: 10px 20px; border-top: 1px solid #f0d6b1; background: #fff9ef; color: #79501e; font-size: .76rem; line-height: 1.45; }
@@ -99,6 +99,8 @@ button:disabled { cursor: not-allowed; }
 .file-name { font-weight: 700; overflow-wrap: anywhere; }
 .file-stats { margin-top: 7px; font-size: 0.8rem; color: var(--muted); }
 .notice { margin-top: 18px; padding: 11px 13px; border-left: 3px solid #8ba1bd; color: #53657c; background: #f6f8fa; font-size: 0.84rem; line-height: 1.5; }
+.analysis-progress { display: flex; align-items: center; gap: 9px; border-left-color: var(--blue); color: #26498b; background: var(--blue-soft); font-weight: 700; }
+.analysis-progress .spinner { border-color: rgba(35,88,213,.25); border-top-color: var(--blue); }
 .warning { border-left-color: #e8a34e; color: #7b4b18; background: var(--amber-soft); }
 .error { margin: 18px 0 0; padding: 12px 14px; background: var(--red-soft); color: #8e2d2d; border: 1px solid #f1bcbc; border-radius: 5px; line-height: 1.45; }
 .actions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 24px; }
@@ -137,6 +139,15 @@ button:disabled { cursor: not-allowed; }
 .info-list { margin: 0; padding-left: 18px; color: #4f6076; font-size: .88rem; line-height: 1.5; }
 .info-list li + li { margin-top: 8px; }
 .empty-copy { color: #8190a2; font-style: italic; font-size: .86rem; }
+.source-summary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin: 0 0 14px; }
+.source-summary { border: 1px solid var(--line); background: #fbfcfd; padding: 15px; }
+.source-summary h3 { margin: 0 0 8px; font: 700 1rem Georgia, serif; }
+.source-summary p { margin: 0; color: #52637a; font-size: .87rem; line-height: 1.5; }
+.summary-topic-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.summary-topic { border: 1px solid #d9e2ed; border-radius: 999px; padding: 4px 8px; color: #58697e; background: white; font-size: .72rem; }
+.summary-topic strong { color: #344b68; }
+.quiz-review-summary { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; margin: 0 0 23px; padding: 12px 14px; border-left: 3px solid var(--green); background: var(--green-soft); color: #345c52; font-size: .84rem; line-height: 1.45; }
+.review-count { color: var(--green); font-size: .75rem; font-weight: 800; text-align: right; }
 
 .quiz-stack { display: grid; gap: 16px; }
 .question-card { border: 1px solid var(--line); padding: 20px; background: white; }
@@ -232,7 +243,7 @@ button:disabled { cursor: not-allowed; }
   .api-key-field label { grid-column: 1 / -1; }
   .step { padding: 12px 6px; justify-content: center; }
   .step-label { display: none; }
-  .input-grid, .tri-grid, .diagnosis-grid, .review-grid, .answer-review-grid { grid-template-columns: 1fr; }
+  .input-grid, .tri-grid, .diagnosis-grid, .review-grid, .answer-review-grid, .source-summary-grid { grid-template-columns: 1fr; }
   .review-grid { grid-column: auto; }
   .panel-head, .panel-body { padding-left: 18px; padding-right: 18px; }
   .confidence { grid-template-columns: 1fr; }
@@ -240,4 +251,6 @@ button:disabled { cursor: not-allowed; }
   .bulk-patch-bar, .result-card-head { align-items: stretch; flex-direction: column; }
   .bulk-actions { justify-content: flex-start; }
   .result-badges, .question-chips { justify-content: flex-start; }
+  .quiz-review-summary { grid-template-columns: 1fr; gap: 5px; }
+  .review-count { text-align: left; }
 }

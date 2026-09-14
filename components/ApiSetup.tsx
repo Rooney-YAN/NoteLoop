@@ -44,9 +44,10 @@ export function ApiSetup({ config, setConfig }: {
         <div className="api-settings-grid">
           <label>Base URL<input type="url" value={config.baseURL} onChange={(event) => customUpdate({ baseURL: event.target.value })} /></label>
           <label>Analysis model<input value={config.analyzeModel} onChange={(event) => customUpdate({ analyzeModel: event.target.value })} /></label>
+          <label>Quiz review model<input value={config.reviewModel} onChange={(event) => customUpdate({ reviewModel: event.target.value })} /></label>
           <label>Diagnosis model<input value={config.diagnoseModel} onChange={(event) => customUpdate({ diagnoseModel: event.target.value })} /></label>
         </div>
-        <p className="api-schema-note">Official presets fill the correct endpoint and model automatically. For a relay, paste its OpenAI-compatible Base URL exactly as documented.</p>
+        <p className="api-schema-note">Quiz review is a separate LLM call. By default it uses the provider preset; set a different review model here if you want independent second-model checking. For a relay, paste its OpenAI-compatible Base URL exactly as documented.</p>
       </details>
       <p className="api-caution">Use a temporary or restricted project key on a trusted device. A browser-only demo cannot provide server-grade secret protection.</p>
     </section>

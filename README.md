@@ -9,10 +9,11 @@ Open the GitHub Pages site, choose **OpenAI official** or **DeepSeek official**,
 ```text
 Base URL: https://api.openai.com/v1
 Analysis model: gpt-4.1-mini
+Quiz review model: gpt-4.1-mini
 Diagnosis model: gpt-4.1-mini
 
 DeepSeek Base URL: https://api.deepseek.com
-DeepSeek model: deepseek-v4-flash
+DeepSeek analysis / quiz review / diagnosis model: deepseek-v4-flash
 ```
 
 The key is stored only in `sessionStorage` for the current browser tab. Closing the tab forgets it. PDF extraction also runs locally in the browser; the source PDF is not uploaded as a file.
@@ -20,6 +21,15 @@ The key is stored only in `sessionStorage` for the current browser tab. Closing 
 Model output compatibility is provider-aware and automatic. OpenAI uses strict Structured Outputs first. DeepSeek uses its supported JSON Object mode with thinking disabled for faster, more reliable structured responses. Custom relays try conservative OpenAI-compatible request variants. Every returned object must still pass the same local Zod validation before it is displayed.
 
 ## Quiz and diagnosis pipeline
+
+Coverage analysis is intentionally staged, so a long PDF cannot be conflated with a student's notes in one opaque request:
+
+1. NoteLoop asks the analysis model to summarize only the extracted course material.
+2. It separately summarizes only the student's notes, without inferring unrecorded knowledge.
+3. It compares those two structured summaries to produce the coverage map and a six-question draft quiz.
+4. A separate quiz-review request audits every draft question against the course summary and returns the final, corrected six-question set. The reviewer must retain every question ID and coverage-topic binding, and its audit summary is shown on the Coverage screen.
+
+The **Quiz review model** is configurable under Advanced settings. It defaults to the same provider model for convenience, but you can choose a different supported model there for a genuinely different second-model review.
 
 - Every analysis produces exactly six questions: two single-choice, two multiple-choice, and two short-answer questions. Cognitive skill (`recall`, `discrimination`, or `transfer`) is tracked separately from the response UI.
 - Choice answers are checked deterministically, while one batched diagnosis request interprets misconceptions and confidence. Short answers are graded by the model against a hidden rubric and reference answer.

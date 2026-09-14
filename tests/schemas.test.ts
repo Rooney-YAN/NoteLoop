@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { diagnoseRequestSchema, diagnosisSchema, questionSchema } from "@/lib/schemas";
-import { createDiagnosisSchema, toQuizAnswers } from "@/lib/quiz";
-import { completeAnswers, diagnosis, questions } from "./fixtures";
+import { createDiagnosisSchema, createQuizReviewSchema, toQuizAnswers } from "@/lib/quiz";
+import { completeAnswers, diagnosis, draftAnalysis, questions, quizReview } from "./fixtures";
 
 describe("quiz schemas", () => {
   it("validates the three answer shapes and existing option IDs", () => {
@@ -34,5 +34,14 @@ describe("quiz schemas", () => {
     expect(createDiagnosisSchema(questions, answers).safeParse(duplicate).success).toBe(false);
     const wrongGrade = structuredClone(diagnosis); wrongGrade.questionResults[0].correctness = "incorrect";
     expect(createDiagnosisSchema(questions, answers).safeParse(wrongGrade).success).toBe(false);
+  });
+
+  it("requires the independent quiz reviewer to preserve every question and its coverage binding", () => {
+    const reviewSchema = createQuizReviewSchema(draftAnalysis);
+    expect(reviewSchema.safeParse(quizReview).success).toBe(true);
+    const missingAudit = structuredClone(quizReview); missingAudit.audits[5].questionId = "q1";
+    expect(reviewSchema.safeParse(missingAudit).success).toBe(false);
+    const changedTopic = structuredClone(quizReview); changedTopic.questions[0].coverageTopicId = "topic-2";
+    expect(reviewSchema.safeParse(changedTopic).success).toBe(false);
   });
 });

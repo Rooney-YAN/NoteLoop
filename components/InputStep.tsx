@@ -5,9 +5,9 @@ import { courseIds, courseProfiles, type CourseId } from "@/lib/courseProfiles";
 
 type PdfInfo = { name: string; characters: number; pages: number; warnings: string[] } | null;
 
-export function InputStep({ course, setCourse, notes, setNotes, pdfInfo, extracting, analyzing, apiReady, error, onPdf, onNotesFile, onAnalyze }: {
+export function InputStep({ course, setCourse, notes, setNotes, pdfInfo, extracting, analyzing, analysisStage, apiReady, error, onPdf, onNotesFile, onAnalyze }: {
   course: CourseId; setCourse: (course: CourseId) => void; notes: string; setNotes: (notes: string) => void;
-  pdfInfo: PdfInfo; extracting: boolean; analyzing: boolean; apiReady: boolean; error: string; onPdf: (file: File) => void; onNotesFile: (file: File) => void; onAnalyze: () => void;
+  pdfInfo: PdfInfo; extracting: boolean; analyzing: boolean; analysisStage: string; apiReady: boolean; error: string; onPdf: (file: File) => void; onNotesFile: (file: File) => void; onAnalyze: () => void;
 }) {
   const pdfRef = useRef<HTMLInputElement>(null);
   const notesRef = useRef<HTMLInputElement>(null);
@@ -24,9 +24,10 @@ export function InputStep({ course, setCourse, notes, setNotes, pdfInfo, extract
           <div><div className="note-toolbar"><label className="section-label" htmlFor="notes" style={{ marginBottom: 0 }}>My notes</label><><input ref={notesRef} className="file-input" type="file" accept=".md,.txt,text/plain,text/markdown" onChange={(event) => event.target.files?.[0] && onNotesFile(event.target.files[0])} /><button type="button" className="link-button" onClick={() => notesRef.current?.click()}>Upload .md / .txt</button></></div><textarea id="notes" className="textarea" maxLength={80000} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="# Paste or write your notes here…" /><div className="helper">{notes.length.toLocaleString()} / 80,000 characters · Draft saved on this device</div></div>
         </div>
         <div className="notice">Text-first analysis: diagrams and image-only slide content may not be fully captured.</div>
+        {analyzing && analysisStage && <div className="notice analysis-progress" role="status"><span className="spinner" />{analysisStage}</div>}
         {pdfInfo?.warnings.map((warning) => <div className="notice warning" key={warning}>{warning}</div>)}
         {error && <div className="error" role="alert">{error}</div>}
-        <div className="actions"><button className="button button-primary" type="button" onClick={onAnalyze} disabled={!apiReady || !pdfInfo || pdfInfo.characters === 0 || !notes.trim() || extracting || analyzing}>{analyzing ? <span className="loading"><span className="spinner" />Analyzing coverage…</span> : "Analyze"}</button></div>
+        <div className="actions"><button className="button button-primary" type="button" onClick={onAnalyze} disabled={!apiReady || !pdfInfo || pdfInfo.characters === 0 || !notes.trim() || extracting || analyzing}>{analyzing ? <span className="loading"><span className="spinner" />Working…</span> : "Analyze"}</button></div>
       </div>
     </section>
   );
