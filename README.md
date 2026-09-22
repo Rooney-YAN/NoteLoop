@@ -1,84 +1,226 @@
+<div align="center">
+
 # NoteLoop
 
-NoteLoop is a browser-only study diagnostic demo. It compares a PDF with a student's notes, tests uncertain areas, diagnoses knowledge state, and returns a minimal Markdown patch.
+## From Notes to Knowledge Gaps
 
-## Use the hosted demo
+*Compare course material with your notes, test uncertain areas, diagnose misconceptions, and patch only what is missing.*
 
-Open the GitHub Pages site, choose **OpenAI official** or **DeepSeek official**, and enter the matching API key. The app fills the endpoint and model automatically:
+<br>
+
+**A browser-first AI study diagnostic tool that closes the loop between learning, testing, and note refinement.**
+
+<br>
+
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Open-1f6feb?style=flat&logo=githubpages&logoColor=white)](https://rooney-yan.github.io/NoteLoop/)
+![Stars](https://img.shields.io/github/stars/Rooney-YAN/NoteLoop?style=flat&logo=github)
+![Forks](https://img.shields.io/github/forks/Rooney-YAN/NoteLoop?style=flat&logo=github)
+![Next.js](https://img.shields.io/badge/Next.js-Latest-000000?style=flat&logo=nextdotjs)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.9+-3178C6?style=flat&logo=typescript&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-Vitest-6E9F18?style=flat&logo=vitest&logoColor=white)
+
+<br>
+
+**Rooney YAN · 2026**
+
+---
+
+</div>
+
+## Overview
+
+**NoteLoop** is a browser-only study diagnostic demo.
+
+Instead of simply summarizing a PDF or rewriting notes, it runs a structured loop:
 
 ```text
-Base URL: https://api.openai.com/v1
-Analysis model: gpt-4.1-mini
-Quiz review model: gpt-4.1-mini
-Diagnosis model: gpt-4.1-mini
-
-DeepSeek Base URL: https://api.deepseek.com
-DeepSeek analysis / quiz review / diagnosis model: deepseek-v4-flash
+Course Material
+      │
+      ▼
+Coverage Analysis
+      │
+      ▼
+Targeted Quiz
+      │
+      ▼
+Diagnosis
+      │
+      ▼
+Minimal Markdown Patch
+      │
+      └──────────────► Improved Notes
 ```
 
-The key is stored only in `sessionStorage` for the current browser tab. Closing the tab forgets it. PDF extraction also runs locally in the browser; the source PDF is not uploaded as a file.
+The system compares source material against a student's existing notes, identifies uncertain or uncovered areas, generates a six-question diagnostic quiz, reviews that quiz, evaluates the answers, and returns only the smallest justified note changes.
 
-Model output compatibility is provider-aware and automatic. OpenAI uses strict Structured Outputs first. DeepSeek uses its supported JSON Object mode with thinking disabled for faster, more reliable structured responses. Custom relays try conservative OpenAI-compatible request variants. Every returned object must still pass the same local Zod validation before it is displayed.
+## Why NoteLoop?
 
-## Quiz and diagnosis pipeline
+Most AI study tools are optimized for **generation**:
 
-Coverage analysis is intentionally staged, so a long PDF cannot be conflated with a student's notes in one opaque request:
+- summarize this PDF
+- rewrite these notes
+- explain this concept
+- generate flashcards
 
-1. NoteLoop asks the analysis model to summarize only the extracted course material.
-2. It separately summarizes only the student's notes, without inferring unrecorded knowledge.
-3. It compares those two structured summaries to produce the coverage map and a six-question draft quiz.
-4. A separate quiz-review request audits every draft question against the course summary and returns the final, corrected six-question set. The reviewer must retain every question ID and coverage-topic binding, and its audit summary is shown on the Coverage screen.
+NoteLoop is designed around **diagnosis** instead.
 
-The **Quiz review model** is configurable under Advanced settings. It defaults to the same provider model for convenience, but you can choose a different supported model there for a genuinely different second-model review.
+It asks:
 
-- Every analysis produces exactly six questions: two single-choice, two multiple-choice, and two short-answer questions. Cognitive skill (`recall`, `discrimination`, or `transfer`) is tracked separately from the response UI.
-- Choice answers are checked deterministically, while one batched diagnosis request interprets misconceptions and confidence. Short answers are graded by the model against a hidden rubric and reference answer.
-- Diagnosis is displayed per question. Each result may include one small `ADD`, `CORRECT`, or `CLARIFY` Markdown patch, or an explicit `NONE` when no note change is justified.
-- Patches can be copied or appended individually, selected and appended in bulk, skipped, and undone. Equal patch content is deduplicated and the original notes are never overwritten.
+> **What does the student already have, what is still uncertain, and what is the smallest useful update?**
 
-This browser-only design is intended for a personal demo. A browser cannot provide server-grade protection for API credentials, so use a temporary or restricted project key on a trusted device. Never hard-code a key or commit one to GitHub.
+That makes the workflow closer to an iterative learning loop than a one-shot note generator.
 
-## Local development
+## Pipeline
 
-Requirements: Node.js 20.9 or newer and pnpm.
+### 1. Material Analysis
+
+The source PDF is extracted locally in the browser and summarized independently.
+
+### 2. Note Analysis
+
+The student's notes are summarized separately, without assuming knowledge that was never written down.
+
+### 3. Coverage Mapping
+
+The two structured summaries are compared to identify covered, weak, and uncertain areas.
+
+### 4. Quiz Generation + Review
+
+NoteLoop creates exactly six diagnostic questions:
+
+- 2 single-choice
+- 2 multiple-choice
+- 2 short-answer
+
+A separate review pass audits and corrects the draft quiz before the student sees it.
+
+### 5. Diagnosis
+
+Choice questions are checked deterministically where possible, while model-based diagnosis is used for misconceptions, confidence, and short-answer evaluation.
+
+### 6. Minimal Patch
+
+Each result can produce one small Markdown patch:
+
+- `ADD`
+- `CORRECT`
+- `CLARIFY`
+- `NONE`
+
+Patches can be copied, appended individually, applied in bulk, skipped, or undone. Existing notes are never silently overwritten.
+
+## Privacy Model
+
+NoteLoop is intentionally browser-first.
+
+- API keys are kept in `sessionStorage` for the current tab
+- closing the tab forgets the key
+- PDF text extraction runs locally
+- returned structured objects are validated locally with Zod
+
+Because this is still a static browser application, it should be treated as a personal demo rather than a server-grade secret-management environment. Use temporary or restricted API keys on trusted devices.
+
+## Supported Providers
+
+The hosted demo currently includes presets for:
+
+- **OpenAI**
+- **DeepSeek**
+- **OpenAI-compatible custom relays**
+
+Provider-specific output modes are handled automatically, while all returned data still passes the same local schema validation.
+
+## Tech Stack
+
+| Layer | Technology |
+| --- | --- |
+| Framework | Next.js |
+| UI | React |
+| Language | TypeScript |
+| Styling | Tailwind CSS |
+| PDF parsing | unpdf |
+| Validation | Zod |
+| LLM SDK | OpenAI-compatible client |
+| Testing | Vitest + Testing Library |
+| Deployment | Static export + GitHub Pages |
+
+These dependencies and scripts are defined in the repository package configuration.
+
+## Local Development
+
+Requirements:
+
+- Node.js 20.9+
+- pnpm
 
 ```bash
+git clone https://github.com/Rooney-YAN/NoteLoop.git
+cd NoteLoop
+
 pnpm install
 pnpm dev
 ```
 
-Open `http://localhost:3000`.
+Then open:
 
-## Static build
+```text
+http://localhost:3000
+```
+
+The repository also provides:
 
 ```bash
 pnpm build
+pnpm lint
+pnpm typecheck
+pnpm test
 ```
 
-The export is written to `out/`. No Node.js server or environment variables are required after the build.
+The production build is exported as a static site.
 
-## GitHub Pages
+## Deployment
 
-The included workflow deploys every push to `main`. In the repository, open **Settings → Pages** and set **Source** to **GitHub Actions**. The published site will be available at:
+Every push to `main` can be deployed through the included GitHub Pages workflow.
+
+Hosted version:
+
+**https://rooney-yan.github.io/NoteLoop/**
+
+The repository documents GitHub Actions as the Pages deployment source.
+
+## Current Limitations
+
+- No OCR for scanned PDFs
+- No diagram or image understanding
+- Browser-side prompts and criteria are visible in the static build
+- API usage is billed by the selected provider
+- Browser CORS restrictions still apply to custom providers
+
+## Project Structure
 
 ```text
-https://rooney-yan.github.io/NoteLoop/
+.
+├── app/
+├── components/
+├── lib/
+├── tests/
+├── types/
+├── .github/workflows/
+├── .env.example
+├── package.json
+└── vitest.config.mts
 ```
 
-If the workflow reports `Get Pages site failed` or HTTP 404 in the **Configure Pages** step, Pages has not been enabled yet. Complete the one-time **Settings → Pages → Source → GitHub Actions** selection, then re-run the failed workflow.
+## Design Principle
 
-The demo supports OpenAI and compatible providers that accept browser cross-origin requests. If a provider blocks browser requests, use a different compatible endpoint or switch back to a server-backed deployment.
+> **Do not rewrite everything. Diagnose first, then change only what the evidence justifies.**
 
-### Provider troubleshooting
+That principle is the core of NoteLoop.
 
-- **OpenAI official:** use an OpenAI key with the OpenAI preset. GPT-5.6-family models use `max_completion_tokens`; the default `gpt-4.1-mini` is the simplest demo option.
-- **DeepSeek official:** use a DeepSeek key with the DeepSeek preset. Its Chat Completions endpoint supports `json_object`, not OpenAI's `json_schema`; NoteLoop also disables DeepSeek's default thinking mode for this structured extraction task.
-- **Custom relay:** use the exact Base URL and model ID published by the relay. NoteLoop tries both common token-limit fields and progressively removes optional output-format parameters when the relay rejects them.
-- HTTP 401/403 usually means a key or model-permission problem; 402 means insufficient credit; 404 means the endpoint or model name is unavailable; 413 means the input is too large; 429 means rate limiting; 5xx means a provider outage.
-- A relay must allow browser CORS requests from `https://rooney-yan.github.io`. This cannot be repaired by static frontend code; choose another relay or a server-backed proxy if it blocks the origin.
+---
 
-## Limitations
+<div align="center">
 
-- PDF text extraction does not include OCR or diagram/image understanding.
-- Prompts and diagnostic reference criteria necessarily run in the browser in this static edition.
-- API usage is billed by the provider associated with the key entered in the page.
+**Learn → Test → Diagnose → Patch → Repeat**
+
+</div>
