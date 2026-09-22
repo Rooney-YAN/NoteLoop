@@ -21,6 +21,10 @@
 
 <br>
 
+**English** · [**中文**](README_zh.md)
+
+<br>
+
 **Rooney YAN · 2026**
 
 ---
